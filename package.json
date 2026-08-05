@@ -1,0 +1,63 @@
+{
+  "name": "opencode-later",
+  "version": "0.1.0",
+  "description": "Global persistent Later list for OpenCode",
+  "type": "module",
+  "author": "ZackarySantana",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZackarySantana/opencode-later.git"
+  },
+  "homepage": "https://github.com/ZackarySantana/opencode-later#readme",
+  "bugs": {
+    "url": "https://github.com/ZackarySantana/opencode-later/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    "./server": {
+      "import": "./dist/server.js",
+      "types": "./dist/server.d.ts"
+    },
+    "./tui": {
+      "import": "./dist/tui.js",
+      "types": "./dist/tui.d.ts"
+    }
+  },
+  "engines": {
+    "opencode": "^1.18.12"
+  },
+  "scripts": {
+    "build": "bun run build.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "prepublishOnly": "bun run test && bun run typecheck && bun run build"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "later",
+    "tasks",
+    "tui"
+  ],
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.18.12 <2",
+    "@opentui/core": ">=0.4.5 <1",
+    "@opentui/keymap": ">=0.4.5 <1",
+    "@opentui/solid": ">=0.4.5 <1",
+    "solid-js": ">=1.9.10 <2"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "1.18.12",
+    "@opentui/core": "0.4.5",
+    "@opentui/keymap": "0.4.5",
+    "@opentui/solid": "0.4.5",
+    "@types/bun": "latest",
+    "solid-js": "1.9.12",
+    "typescript": "5.8.2"
+  }
+}
