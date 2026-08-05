@@ -6,6 +6,18 @@ A global persistent Later list with native OpenCode sidebar integration and mana
 
 `/later` opens a keyboard-first management view for adding, editing, completing, restoring, deleting, and reordering items. Active items remain visible in OpenCode's right sidebar across every session and project.
 
+### Add Items
+
+Add items from the keyboard-first management view.
+
+![opencode-later add dialog for creating a new Later item](https://raw.githubusercontent.com/ZackarySantana/opencode-later/main/assets/oc-later-demo1.png)
+
+### Manage Your List
+
+Review active items and completed history, then edit, reorder, complete, restore, delete, or start an item.
+
+![opencode-later management view showing active items and completed history](https://raw.githubusercontent.com/ZackarySantana/opencode-later/main/assets/oc-later-demo2.png)
+
 Published on npm as [`opencode-later`](https://www.npmjs.com/package/opencode-later).
 
 ## Requirements
