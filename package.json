@@ -1,6 +1,6 @@
 {
   "name": "opencode-later",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Global persistent Later list for OpenCode",
   "type": "module",
   "author": "ZackarySantana",
