@@ -1,3 +1,5 @@
+> Archived: Development has moved to [Opcode](https://github.com/zackarysantana/opcode). Install from that repository instead.
+
 # opencode-later
 
 [![npm](https://img.shields.io/npm/v/opencode-later)](https://www.npmjs.com/package/opencode-later)
