@@ -1,10 +1,6 @@
-import type { Plugin, PluginModule } from "@opencode-ai/plugin"
+import { Plugin } from "@opencode/plugin"
 
-const server: Plugin = async () => ({})
-
-const plugin: PluginModule & { id: string } = {
+export default Plugin.define({
   id: "opencode-later",
-  server,
-}
-
-export default plugin
+  setup() {},
+})

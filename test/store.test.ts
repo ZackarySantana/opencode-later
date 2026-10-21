@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { databasePath, LaterStore } from "../src/store.js"
+import { databasePath, LaterStore, stateDirectory } from "../src/store.js"
 
 const directories: string[] = []
 afterEach(() => {
@@ -86,4 +86,9 @@ test("resolves default and custom database paths", () => {
   expect(databasePath("/state", "custom.sqlite")).toBe("/state/custom.sqlite")
   expect(databasePath("/state", "/tmp/custom.sqlite")).toBe("/tmp/custom.sqlite")
   expect(databasePath("/state", ":memory:")).toBe(":memory:")
+})
+
+test("keeps the V1 state location and respects XDG_STATE_HOME", () => {
+  expect(stateDirectory({}, "/home/example")).toBe("/home/example/.local/state/opencode")
+  expect(stateDirectory({ XDG_STATE_HOME: "/custom/state" }, "/home/example")).toBe("/custom/state/opencode")
 })

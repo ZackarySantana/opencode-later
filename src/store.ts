@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite"
 import { mkdirSync } from "node:fs"
+import { homedir } from "node:os"
 import { dirname, isAbsolute, join, resolve } from "node:path"
 
 export type LaterItem = {
@@ -39,6 +40,10 @@ type ItemRow = {
   createdAt: number
   updatedAt: number
   completedAt: number | null
+}
+
+export function stateDirectory(env = process.env, home = homedir()) {
+  return join(env.XDG_STATE_HOME || join(home, ".local", "state"), "opencode")
 }
 
 export function databasePath(stateDirectory: string, configured?: unknown) {

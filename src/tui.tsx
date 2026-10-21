@@ -1,10 +1,11 @@
 /** @jsxImportSource @opentui/solid */
 
 import type { RGBA } from "@opentui/core"
-import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui"
+import { Plugin } from "@opencode/plugin/tui"
+import type { Context, Route } from "@opencode/plugin/tui/context"
 import { useTerminalDimensions } from "@opentui/solid"
-import { createMemo, createSignal, onCleanup } from "solid-js"
-import { databasePath, LaterStore, type LaterItem } from "./store.js"
+import { createMemo, createSignal, onCleanup, Show } from "solid-js"
+import { databasePath, LaterStore, stateDirectory, type LaterItem } from "./store.js"
 
 const ROUTE = "opencode-later.manage"
 const MODE = "opencode-later.manage"
@@ -26,8 +27,7 @@ const commands = {
 }
 
 type Color = RGBA | string
-type ReturnRoute = { name: string; params?: Record<string, unknown> }
-type RouteState = { selectedID?: string; history: boolean; back: ReturnRoute }
+type RouteState = { selectedID?: string; history: boolean; back: Route }
 type StateStore = { get: () => RouteState; set: (state: RouteState) => void }
 type RevisionStore = { get: () => number; refresh: () => void }
 type Skin = { background: Color; panel: Color; border: Color; text: Color; muted: Color; primary: Color; success: Color; warning: Color }
@@ -36,17 +36,17 @@ export function sidebarVisible(items: readonly LaterItem[]) {
   return items.length > 0
 }
 
-function skin(api: TuiPluginApi): Skin {
-  const theme = api.theme.current
+function skin(api: Context): Skin {
+  const theme = api.theme
   return {
-    background: theme.background,
-    panel: theme.backgroundPanel,
-    border: theme.border,
-    text: theme.text,
-    muted: theme.textMuted,
-    primary: theme.primary,
-    success: theme.success,
-    warning: theme.warning,
+    background: theme.background.base,
+    panel: theme.background.raised.base,
+    border: theme.border.base,
+    text: theme.text.base,
+    muted: theme.text.muted,
+    primary: theme.text.action.primary.base,
+    success: theme.text.feedback.success.base,
+    warning: theme.text.feedback.warning.base,
   }
 }
 
@@ -60,13 +60,13 @@ function clampSelection(items: LaterItem[], state: RouteState): RouteState {
   return { ...state, selectedID: items[0]!.id }
 }
 
-function ManageScreen(props: { api: TuiPluginApi; store: LaterStore; state: StateStore; revision: RevisionStore }) {
+function ManageScreen(props: { api: Context; store: LaterStore; state: StateStore; revision: RevisionStore }) {
   const dimensions = useTerminalDimensions()
   const colors = skin(props.api)
   const active = createMemo(() => { props.revision.get(); return props.store.active() })
   const completed = createMemo(() => { props.revision.get(); return props.store.completed() })
   const visible = createMemo(() => props.state.get().history ? [...active(), ...completed()] : active())
-  const popMode = props.api.mode.push(MODE)
+  const popMode = props.api.keymap.mode.push(MODE)
   onCleanup(popMode)
 
   return (
@@ -133,71 +133,51 @@ function Hint(props: { keyText: string; action: string; colors: Skin }) {
   return <text fg={props.colors.muted}><span style={{ fg: props.colors.text }}>{props.keyText}</span> {props.action}</text>
 }
 
-function openManager(api: TuiPluginApi, state: StateStore, store: LaterStore) {
-  const current = api.route.current
+function openManager(api: Context, state: StateStore, store: LaterStore) {
+  const current = api.ui.router.current()
+  if (current.type === "plugin" && current.name === ROUTE) return
   const active = store.active()
-  state.set({ selectedID: active[0]?.id, history: false, back: { name: current.name, params: "params" in current ? current.params : undefined } })
-  api.route.navigate(ROUTE)
+  state.set({ selectedID: active[0]?.id, history: false, back: current })
+  api.ui.router.navigate({ type: "plugin", name: ROUTE })
 }
 
-function registerCommands(api: TuiPluginApi, store: LaterStore, state: StateStore, revision: RevisionStore) {
-  const toastError = (message: string) => api.ui.toast({ variant: "error", title: "Later", message })
+function registerCommands(api: Context, store: LaterStore, state: StateStore, revision: RevisionStore, disposed: () => boolean) {
+  const toastError = (message: string) => api.ui.toast.show({ variant: "error", title: "Later", message })
   const refresh = () => revision.refresh()
   const rows = () => state.get().history ? [...store.active(), ...store.completed()] : store.active()
   const update = (next: RouteState) => state.set(clampSelection(state.get().history ? [...store.active(), ...store.completed()] : store.active(), next))
-  const mutate = (operation: () => boolean, success: string) => {
-    if (!operation()) return false
-    refresh()
-    update(state.get())
-    api.ui.toast({ variant: "success", title: "Later", message: success })
-    return true
-  }
-
-  api.keymap.registerLayer({
+  api.keymap.layer(() => ({
+    mode: "global",
     commands: [
       {
-        name: commands.open,
+        id: commands.open,
         title: "Later",
-        desc: "Manage the global Later list",
-        category: "Plugin",
-        namespace: "palette",
-        slashName: "later",
+        description: "Manage the global Later list",
+        group: "Plugin",
+        palette: true,
+        slash: { name: "later" },
         run() { openManager(api, state, store) },
       },
     ],
-  })
+  }))
 
-  api.keymap.registerLayer({
+  api.keymap.layer(() => ({
     mode: MODE,
     commands: [
-      { name: commands.close, title: "Close", hidden: true, run() { const value = state.get(); api.route.navigate(value.back.name, value.back.params) } },
-      { name: commands.refresh, title: "Refresh", hidden: true, run() { refresh(); update(state.get()) } },
-      { name: commands.history, title: "Toggle history", hidden: true, run() { const value = state.get(); const next = { ...value, history: !value.history }; state.set(clampSelection(next.history ? [...store.active(), ...store.completed()] : store.active(), next)) } },
-      { name: commands.up, title: "Previous", hidden: true, run() { select(-1) } },
-      { name: commands.down, title: "Next", hidden: true, run() { select(1) } },
-      { name: commands.moveUp, title: "Move up", hidden: true, run() { move(-1) } },
-      { name: commands.moveDown, title: "Move down", hidden: true, run() { move(1) } },
-      { name: commands.complete, title: "Toggle completion", hidden: true, run() { toggleComplete() } },
-      { name: commands.start, title: "Start", hidden: true, run() { void start() } },
-      { name: commands.remove, title: "Delete", hidden: true, run() { remove() } },
-      { name: commands.add, title: "Add", hidden: true, run() { promptAdd() } },
-      { name: commands.edit, title: "Edit", hidden: true, run() { promptEdit() } },
+      { id: commands.close, title: "Close", bind: "escape", run() { api.ui.router.navigate(state.get().back) } },
+      { id: commands.refresh, title: "Refresh", bind: "r", run() { refresh(); update(state.get()) } },
+      { id: commands.history, title: "Toggle history", bind: "h", run() { const value = state.get(); const next = { ...value, history: !value.history }; state.set(clampSelection(next.history ? [...store.active(), ...store.completed()] : store.active(), next)) } },
+      { id: commands.up, title: "Previous", bind: "up,k", run() { select(-1) } },
+      { id: commands.down, title: "Next", bind: "down,j", run() { select(1) } },
+      { id: commands.moveUp, title: "Move up", bind: "shift+k", run() { move(-1) } },
+      { id: commands.moveDown, title: "Move down", bind: "shift+j", run() { move(1) } },
+      { id: commands.complete, title: "Toggle completion", bind: "space", run() { toggleComplete() } },
+      { id: commands.start, title: "Start", bind: "return", run: start },
+      { id: commands.remove, title: "Delete", bind: "d", run: remove },
+      { id: commands.add, title: "Add", bind: "a", run: promptAdd },
+      { id: commands.edit, title: "Edit", bind: "e", run: promptEdit },
     ],
-    bindings: [
-      { key: "escape", cmd: commands.close, desc: "Back" },
-      { key: "up,k", cmd: commands.up, desc: "Previous" },
-      { key: "down,j", cmd: commands.down, desc: "Next" },
-      { key: "shift+k", cmd: commands.moveUp, desc: "Move up" },
-      { key: "shift+j", cmd: commands.moveDown, desc: "Move down" },
-      { key: "a", cmd: commands.add, desc: "Add" },
-      { key: "e", cmd: commands.edit, desc: "Edit" },
-      { key: "space", cmd: commands.complete, desc: "Complete" },
-      { key: "enter,return", cmd: commands.start, desc: "Start" },
-      { key: "d", cmd: commands.remove, desc: "Delete" },
-      { key: "h", cmd: commands.history, desc: "History" },
-      { key: "r", cmd: commands.refresh, desc: "Refresh" },
-    ],
-  })
+  }))
 
   function select(offset: -1 | 1) {
     const items = rows()
@@ -224,7 +204,7 @@ function registerCommands(api: TuiPluginApi, store: LaterStore, state: StateStor
     refresh()
     const nextRows = state.get().history ? [...store.active(), ...store.completed()] : store.active()
     state.set(clampSelection(nextRows, { ...state.get(), selectedID: previousID }))
-    api.ui.toast({
+    api.ui.toast.show({
       variant: "success",
       title: "Later",
       message: item.completedAt ? "Item restored to the active list." : "Item moved to history.",
@@ -234,93 +214,108 @@ function registerCommands(api: TuiPluginApi, store: LaterStore, state: StateStor
   async function start() {
     const item = selectedItem(rows(), state.get().selectedID)
     if (!item || item.completedAt) return
-    if (!store.complete(item.id)) return
-    refresh()
     const back = state.get().back
-    api.route.navigate(back.name, back.params)
-    await api.client.tui.publish({
-      directory: api.state.path.directory,
-      body: { type: "tui.prompt.append", properties: { text: item.message } },
-    })
+    if (back.type === "plugin") return
+    api.ui.router.navigate(back)
+    // V2 has no TUI publish endpoint. Deliver a local paste through OpenTUI
+    // once the destination prompt has mounted, without submitting it.
+    await api.renderer.idle()
+    if (disposed()) return
+    const current = api.ui.router.current()
+    if (current.type !== back.type || (current.type === "session" && back.type === "session" && current.sessionID !== back.sessionID)) return
+    if (!api.keymap.commands().some((command) => command.id === "prompt.paste")) {
+      toastError("The prompt is not ready. The item is still active; try again.")
+      return
+    }
+    api.renderer.keyInput.processPaste(new TextEncoder().encode(item.message))
+    store.complete(item.id)
+    refresh()
   }
 
-  function promptAdd() {
-    api.ui.dialog.setSize("large")
-    api.ui.dialog.replace(() => <api.ui.DialogPrompt title="Add for later" placeholder="What should you return to?" onConfirm={(message) => {
-      try { store.add(message); refresh(); update(state.get()); api.ui.dialog.clear() } catch (error) { toastError(error instanceof Error ? error.message : "Could not add item.") }
-    }} onCancel={() => api.ui.dialog.clear()} />)
+  async function promptAdd() {
+    const message = await api.ui.dialog.prompt({ title: "Add for later", placeholder: "What should you return to?" })
+    if (message === undefined || disposed()) return
+    try { store.add(message); refresh(); update(state.get()) } catch (error) { toastError(error instanceof Error ? error.message : "Could not add item.") }
   }
 
-  function promptEdit() {
+  async function promptEdit() {
     const item = selectedItem(rows(), state.get().selectedID)
     if (!item) return
-    api.ui.dialog.setSize("large")
-    api.ui.dialog.replace(() => <api.ui.DialogPrompt title="Edit Later item" value={item.message} onConfirm={(message) => {
-      try { store.edit(item.id, message); refresh(); api.ui.dialog.clear() } catch (error) { toastError(error instanceof Error ? error.message : "Could not edit item.") }
-    }} onCancel={() => api.ui.dialog.clear()} />)
+    const message = await api.ui.dialog.prompt({ title: "Edit Later item", value: item.message })
+    if (message === undefined || disposed()) return
+    try { store.edit(item.id, message); refresh() } catch (error) { toastError(error instanceof Error ? error.message : "Could not edit item.") }
   }
 
-  function remove() {
+  async function remove() {
     const items = rows()
     const item = selectedItem(items, state.get().selectedID)
     if (!item) return
     const index = items.findIndex((entry) => entry.id === item.id)
     const previousID = items[index - 1]?.id
-    api.ui.dialog.setSize("medium")
-    api.ui.dialog.replace(() => <api.ui.DialogConfirm title="Delete permanently?" message={item.message} onConfirm={() => {
-      api.ui.dialog.clear()
-      if (!store.delete(item.id)) return
-      refresh()
-      const nextRows = state.get().history ? [...store.active(), ...store.completed()] : store.active()
-      state.set(clampSelection(nextRows, { ...state.get(), selectedID: previousID }))
-      api.ui.toast({ variant: "success", title: "Later", message: "Item deleted permanently." })
-    }} onCancel={() => api.ui.dialog.clear()} />)
+    const confirmed = await api.ui.dialog.confirm({ title: "Delete permanently?", message: item.message })
+    if (!confirmed || disposed() || !store.delete(item.id)) return
+    refresh()
+    const nextRows = state.get().history ? [...store.active(), ...store.completed()] : store.active()
+    state.set(clampSelection(nextRows, { ...state.get(), selectedID: previousID }))
+    api.ui.toast.show({ variant: "success", title: "Later", message: "Item deleted permanently." })
   }
 }
 
-const tui: TuiPlugin = async (api, options) => {
-  const store = new LaterStore(databasePath(api.state.path.state, options?.database))
-  const [revisionValue, setRevision] = createSignal(store.revision())
-  const revision: RevisionStore = { get: revisionValue, refresh: () => setRevision(store.revision()) }
-  const [stateValue, setState] = createSignal<RouteState>({ history: false, back: { name: "home" } })
-  const state: StateStore = { get: stateValue, set: setState }
-  const timer = setInterval(() => {
-    const next = store.revision()
-    if (next !== revisionValue()) setRevision(next)
-  }, 350)
+export default Plugin.define({
+  id: "opencode-later",
+  setup(api) {
+    const store = new LaterStore(databasePath(stateDirectory(), api.options.database))
+    const [revisionValue, setRevision] = createSignal(store.revision())
+    const revision: RevisionStore = { get: revisionValue, refresh: () => setRevision(store.revision()) }
+    const [stateValue, setState] = createSignal<RouteState>({ history: false, back: { type: "home" } })
+    const state: StateStore = { get: stateValue, set: setState }
+    const timer = setInterval(() => {
+      const next = store.revision()
+      if (next !== revisionValue()) setRevision(next)
+    }, 350)
 
-  api.lifecycle.onDispose(() => {
-    clearInterval(timer)
-    if (api.route.current.name === ROUTE) api.route.navigate("home")
-    store.close()
-  })
+    let disposed = false
+    let unregisterRoute: (() => void) | undefined
+    let unregisterSlot: (() => void) | undefined
+    const cleanup = () => {
+      if (disposed) return
+      disposed = true
+      clearInterval(timer)
+      const current = api.ui.router.current()
+      if (current.type === "plugin" && current.name === ROUTE) api.ui.router.navigate(state.get().back)
+      unregisterSlot?.()
+      unregisterRoute?.()
+      store.close()
+    }
 
-  api.route.register([{ name: ROUTE, render: () => <ManageScreen api={api} store={store} state={state} revision={revision} /> }])
-  api.slots.register({
-    order: 450,
-    slots: {
-      sidebar_content(ctx) {
-        revision.get()
-        const items = store.active()
-        if (!sidebarVisible(items)) return null
-        return (
-          <box flexDirection="column" paddingTop={1}>
-            <text fg={ctx.theme.current.text}><b>Later</b></text>
-            <box flexDirection="column" paddingTop={1}>
-              {items.map((item, index) => (
-                <box flexDirection="row">
-                  <text width={4} fg={ctx.theme.current.textMuted}>{index + 1}.</text>
-                  <text flexGrow={1} wrapMode="word" fg={ctx.theme.current.text}>{item.message}</text>
+    try {
+      unregisterRoute = api.ui.router.register({ name: ROUTE, render: () => <ManageScreen api={api} store={store} state={state} revision={revision} /> })
+      unregisterSlot = api.ui.slot({
+        append: "sidebar.content",
+        render() {
+          const items = createMemo(() => { revision.get(); return store.active() })
+          return (
+            <Show when={sidebarVisible(items())}>
+              <box flexDirection="column" paddingTop={1}>
+                <text fg={api.theme.text.base}><b>Later</b></text>
+                <box flexDirection="column" paddingTop={1}>
+                  {items().map((item, index) => (
+                    <box flexDirection="row">
+                      <text width={4} fg={api.theme.text.muted}>{index + 1}.</text>
+                      <text flexGrow={1} wrapMode="word" fg={api.theme.text.base}>{item.message}</text>
+                    </box>
+                  ))}
                 </box>
-              ))}
-            </box>
-          </box>
-        )
-      },
-    },
-  })
-  registerCommands(api, store, state, revision)
-}
-
-const plugin: TuiPluginModule & { id: string } = { id: "opencode-later", tui }
-export default plugin
+              </box>
+            </Show>
+          )
+        },
+      })
+      registerCommands(api, store, state, revision, () => disposed)
+      return cleanup
+    } catch (error) {
+      cleanup()
+      throw error
+    }
+  },
+})

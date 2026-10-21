@@ -1,6 +1,6 @@
 {
   "name": "opencode-later",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Global persistent Later list for OpenCode",
   "type": "module",
   "author": "ZackarySantana",
@@ -19,23 +19,27 @@
     "LICENSE"
   ],
   "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
     "./server": {
-      "import": "./dist/server.js",
-      "types": "./dist/server.d.ts"
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
     },
     "./tui": {
-      "import": "./dist/tui.js",
-      "types": "./dist/tui.d.ts"
+      "types": "./dist/tui.d.ts",
+      "import": "./dist/tui.js"
     }
   },
   "engines": {
-    "opencode": "^1.18.12"
+    "opencode": "^2.1.1"
   },
   "scripts": {
     "build": "bun run build.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
-    "prepublishOnly": "bun run test && bun run typecheck && bun run build"
+    "test": "bun run build && bun test",
+    "prepublishOnly": "bun run typecheck && bun run test"
   },
   "keywords": [
     "opencode",
@@ -44,20 +48,20 @@
     "tasks",
     "tui"
   ],
+  "dependencies": {
+    "@opencode/plugin": "^2.1.1"
+  },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.18.12 <2",
-    "@opentui/core": ">=0.4.5 <1",
-    "@opentui/keymap": ">=0.4.5 <1",
-    "@opentui/solid": ">=0.4.5 <1",
+    "@opentui/core": ">=0.6.6 <1",
+    "@opentui/solid": ">=0.6.6 <1",
     "solid-js": ">=1.9.10 <2"
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "1.18.12",
-    "@opentui/core": "0.4.5",
-    "@opentui/keymap": "0.4.5",
-    "@opentui/solid": "0.4.5",
+    "@opencode/theme": "2.1.1",
+    "@opentui/core": "0.6.6",
+    "@opentui/solid": "0.6.6",
     "@types/bun": "latest",
-    "solid-js": "1.9.12",
+    "solid-js": "1.9.15",
     "typescript": "5.8.2"
   }
 }
